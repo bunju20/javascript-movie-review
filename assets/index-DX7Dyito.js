@@ -223,85 +223,63 @@ class MovieService {
     }
   }
 }
-class Store {
-  constructor() {
-    __publicField(this, "state");
-    this.state = { currentMode: "popularAdd" };
-  }
-  setMode(newMode) {
-    this.state.currentMode = newMode;
-  }
-  getMode() {
-    return this.state.currentMode;
-  }
-}
-const store = new Store();
-class SearchHandler {
-  constructor(movieListHandler) {
-    __publicField(this, "currentQuery", "");
-    __publicField(this, "movieListHandler");
-    this.movieListHandler = movieListHandler;
-  }
-  /**
-   * 검색 요청을 처리.
-   * @param query 검색어
-   */
-  async handleSearch(query) {
-    this.currentQuery = query.trim();
-    if (!this.currentQuery) {
-      await this.movieListHandler.loadMovies();
-      return;
-    }
-    await this.movieListHandler.loadMovies(this.currentQuery);
-  }
-  /**
-   * 추가 검색 결과를 불러온다 (무한 스크롤)
-   */
-  async loadMoreSearchResults() {
-    await this.movieListHandler.loadMoreMovies(this.currentQuery);
-  }
-  /**
-   * 현재 검색어를 반환한다.
-   */
-  getCurrentQuery() {
-    return this.currentQuery;
-  }
-}
 class SearchBar {
   constructor(searchHandler) {
     this.searchHandler = searchHandler;
+    this.searchInput = null;
+    this.searchButton = null;
   }
+  /**
+   * 검색바 컴포넌트를 생성하고 이벤트 리스너를 등록.
+   */
   createSearchBar() {
-    const searchBarContainer = document.createElement("div");
-    searchBarContainer.classList.add("search-bar-container");
-    const form = document.createElement("form");
-    form.classList.add("search-form");
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const input2 = e.target.querySelector(".search-bar-input");
-      await this.searchHandler.handleSearch(input2.value);
-      store.setMode("searchAdd");
-    });
-    const input = document.createElement("input");
-    input.classList.add("search-bar-input");
-    input.placeholder = "검색어를 입력하세요...";
-    input.name = "query";
-    const searchButton = document.createElement("button");
-    searchButton.classList.add("search-bar-button");
-    searchButton.type = "submit";
-    const buttonImage = document.createElement("img");
-    buttonImage.src = "images/find.png";
-    buttonImage.alt = "검색";
-    buttonImage.classList.add("search-icon");
-    searchButton.appendChild(buttonImage);
-    form.appendChild(input);
-    form.appendChild(searchButton);
-    searchBarContainer.appendChild(form);
     const searchHeader = document.querySelector(".search-header");
     if (!searchHeader) {
       throw new Error(".search-header 요소를 찾을 수 없습니다.");
     }
-    searchHeader.appendChild(searchBarContainer);
+    searchHeader.innerHTML += `
+      <div class="search-bar-container">
+        <form class="search-form">
+          <input 
+            class="search-bar-input" 
+            placeholder="검색어를 입력하세요..." 
+            name="query"
+          />
+          <button class="search-bar-button" type="submit">
+            <img src="images/find.png" alt="검색" class="search-icon" />
+          </button>
+        </form>
+      </div>
+    `;
+    this.searchInput = searchHeader.querySelector(".search-bar-input");
+    this.searchButton = searchHeader.querySelector(".search-bar-button");
+    const searchForm = searchHeader.querySelector(".search-form");
+    searchForm.addEventListener("submit", this.handleSubmit.bind(this));
+    this.searchButton.addEventListener("click", this.handleSearchClick.bind(this));
+    this.searchInput.addEventListener("keypress", this.handleKeyPress.bind(this));
+  }
+  async handleSubmit(event) {
+    event.preventDefault();
+    const query = this.searchInput.value;
+    await this.searchHandler.handleSearch(query);
+    store.setMode("searchAdd");
+  }
+  /**
+   * 검색 버튼 클릭 이벤트 핸들러
+   */
+  async handleSearchClick() {
+    const query = this.searchInput.value;
+    await this.searchHandler.handleSearch(query);
+  }
+  /**
+   * 검색 입력 필드 키 입력 이벤트 핸들러 (엔터키 처리)
+   */
+  async handleKeyPress(event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const query = this.searchInput.value;
+      await this.searchHandler.handleSearch(query);
+    }
   }
 }
 class MovieCard {
@@ -537,6 +515,19 @@ class DetailModal {
     modalBackground.remove();
   }
 }
+class Store {
+  constructor() {
+    __publicField(this, "state");
+    this.state = { currentMode: "popularAdd" };
+  }
+  setMode(newMode) {
+    this.state.currentMode = newMode;
+  }
+  getMode() {
+    return this.state.currentMode;
+  }
+}
+const store$1 = new Store();
 class MovieList {
   constructor(containerSelector, moviesData, currentPage, totalPage, movieService, movieListHandler) {
     this.container = document.querySelector(containerSelector);
@@ -575,7 +566,7 @@ class MovieList {
       if (this.scrollTimer) return;
       this.scrollTimer = setTimeout(() => {
         console.log("로드 요청: 페이지", this.currentPage, "/", this.totalPage);
-        if (store.getMode() === "searchAdd") {
+        if (store$1.getMode() === "searchAdd") {
           this.movieListHandler.loadMoreMovies(this.lastQuery);
         } else {
           this.movieListHandler.loadMoreMovies();
@@ -648,7 +639,7 @@ class MovieListHandler {
     __publicField(this, "movieService");
     __publicField(this, "store");
     this.movieService = movieService;
-    this.store = store;
+    this.store = store$1;
   }
   /**
    * 영화 목록을 불러오고 렌더링한다.
@@ -748,21 +739,44 @@ class MovieListHandler {
     if (loadMoreButton) loadMoreButton.remove();
   }
 }
+class SearchHandler {
+  constructor() {
+    __publicField(this, "currentQuery", "");
+    __publicField(this, "onSearch", async () => {
+    });
+  }
+  /**
+   * 검색 요청을 처리.
+   * @param query 검색어
+   */
+  async handleSearch(query) {
+    this.currentQuery = query.trim();
+    await this.onSearch(this.currentQuery);
+  }
+  /**
+   * 현재 검색어를 반환.
+   */
+  getCurrentQuery() {
+    return this.currentQuery;
+  }
+}
 class Logo {
-  constructor(movieListHandler) {
-    this.movieListHandler = movieListHandler;
+  constructor() {
+    __publicField(this, "onClick", async () => {
+    });
+    this.element = null;
   }
   createLogo() {
-    const logo = document.querySelector(".logo");
-    if (logo) {
-      logo.addEventListener("click", this.handleLogoClick.bind(this));
+    this.element = document.querySelector(".logo");
+    if (this.element) {
+      this.element.addEventListener("click", this.handleLogoClick.bind(this));
     } else {
       console.error("로고 요소를 찾을 수 없습니다.");
     }
+    return this.element;
   }
   async handleLogoClick() {
-    store.setMode("popularAdd");
-    await this.movieListHandler.initMovieList();
+    await this.onClick();
   }
 }
 class App {
@@ -771,13 +785,24 @@ class App {
     __publicField(this, "movieService");
     __publicField(this, "movieListHandler");
     __publicField(this, "searchHandler");
+    __publicField(this, "logo");
     this.api = new TmdbApi(
       "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJjZWIyNGYwYTUwYzYxOThkNzExNjEyZTU5NDUwM2YyMyIsIm5iZiI6MTc0MjI4Mjc5MC45MTkwMDAxLCJzdWIiOiI2N2Q5MjAyNmUxZTNjZGNiZjljNmE3ZTciLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.TYjoP8fOSebrdRtncq50rh6vC8h3EldqEIFhBLgrNL8",
       "https://api.themoviedb.org/3"
     );
     this.movieService = new MovieService(this.api);
     this.movieListHandler = new MovieListHandler(this.movieService);
-    this.searchHandler = new SearchHandler(this.movieListHandler);
+    this.searchHandler = new SearchHandler();
+    this.logo = new Logo();
+    this.connectHandlers();
+  }
+  connectHandlers() {
+    this.searchHandler.onSearch = async (query) => {
+      await this.movieListHandler.loadMovies(query);
+    };
+    this.logo.onClick = async () => {
+      await this.movieListHandler.loadMovies();
+    };
   }
   async initialize() {
     try {
@@ -790,11 +815,14 @@ class App {
   initializeUIComponents() {
     const searchBar = new SearchBar(this.searchHandler);
     searchBar.createSearchBar();
-    const logo = new Logo(this.movieListHandler);
-    logo.createLogo();
+    this.logo.createLogo();
   }
 }
 window.addEventListener("load", async () => {
-  const app = new App();
-  await app.initialize();
+  try {
+    const app = new App();
+    await app.initialize();
+  } catch (error) {
+    console.error("애플리케이션 초기화 실패:", error);
+  }
 });
